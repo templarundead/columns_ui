@@ -73,37 +73,37 @@ class PlaylistViewAppearanceDataSet : public fcl::dataset {
                 int use_custom_colours{};
                 reader.read_item(use_custom_colours);
                 if (use_custom_colours == 2)
-                    colour_manager_entry->colour_mode = colours::colour_mode_themed;
+                    colour_manager_entry->light_mode_colours.colour_mode = colours::colour_mode_themed;
                 else if (use_custom_colours == 1)
-                    colour_manager_entry->colour_mode = colours::colour_mode_custom;
+                    colour_manager_entry->light_mode_colours.colour_mode = colours::colour_mode_custom;
                 else
-                    colour_manager_entry->colour_mode = colours::colour_mode_system;
+                    colour_manager_entry->light_mode_colours.colour_mode = colours::colour_mode_system;
                 break;
             }
             case colours_pview_use_system_focus_frame: {
                 int use_system_frame{};
                 reader.read_item(use_system_frame);
-                colour_manager_entry->use_custom_active_item_frame = !use_system_frame;
+                colour_manager_entry->light_mode_colours.use_custom_active_item_frame = !use_system_frame;
                 break;
             }
             case colours_pview_background:
                 b_colour_read = true;
-                reader.read_item(colour_manager_entry->background);
+                reader.read_item(colour_manager_entry->light_mode_colours.background);
                 break;
             case colours_pview_selection_background:
-                reader.read_item(colour_manager_entry->selection_background);
+                reader.read_item(colour_manager_entry->light_mode_colours.selection_background);
                 break;
             case colours_pview_inactive_selection_background:
-                reader.read_item(colour_manager_entry->inactive_selection_background);
+                reader.read_item(colour_manager_entry->light_mode_colours.inactive_selection_background);
                 break;
             case colours_pview_text:
-                reader.read_item(colour_manager_entry->text);
+                reader.read_item(colour_manager_entry->light_mode_colours.text);
                 break;
             case colours_pview_selection_text:
-                reader.read_item(colour_manager_entry->selection_text);
+                reader.read_item(colour_manager_entry->light_mode_colours.selection_text);
                 break;
             case colours_pview_inactive_selection_text:
-                reader.read_item(colour_manager_entry->inactive_selection_text);
+                reader.read_item(colour_manager_entry->light_mode_colours.inactive_selection_text);
                 break;
             case colours_pview_header_font: {
                 LOGFONT lf{};

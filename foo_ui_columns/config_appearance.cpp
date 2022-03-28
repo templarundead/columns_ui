@@ -88,19 +88,21 @@ bool handle_system_dark_mode_availability_change()
 
 } // namespace cui::colours
 
+// FIXME
 cui::colours::colour_mode_t g_get_global_colour_mode()
 {
     ColourManagerData::entry_ptr_t ptr;
     g_colour_manager_data.find_by_guid(pfc::guid_null, ptr);
-    return ptr->colour_mode;
+    return ptr->active_colour_set().colour_mode;
 }
 
+// FIXME
 void g_set_global_colour_mode(cui::colours::colour_mode_t mode)
 {
     ColourManagerData::entry_ptr_t ptr;
     g_colour_manager_data.find_by_guid(pfc::guid_null, ptr);
-    if (ptr->colour_mode != mode) {
-        ptr->colour_mode = mode;
+    if (ptr->active_colour_set().colour_mode != mode) {
+        ptr->active_colour_set().colour_mode = mode;
         g_colour_manager_data.g_on_common_colour_changed(cui::colours::colour_flag_all);
         if (g_tab_appearance.is_active()) {
             g_tab_appearance.update_mode_combobox();
@@ -112,7 +114,7 @@ void g_set_global_colour_mode(cui::colours::colour_mode_t mode)
         for (size_t i = 0; i < count; i++) {
             ColourManagerData::entry_ptr_t p_data;
             g_colour_manager_data.find_by_guid(m_colours_client_list[i].m_guid, p_data);
-            if (p_data->colour_mode == cui::colours::colour_mode_global)
+            if (p_data->active_colour_set().colour_mode == cui::colours::colour_mode_global)
                 m_colours_client_list[i].m_ptr->on_colour_changed(cui::colours::colour_flag_all);
         }
     }
@@ -131,7 +133,7 @@ void on_global_colours_change()
     for (size_t i = 0; i < count; i++) {
         ColourManagerData::entry_ptr_t p_data;
         g_colour_manager_data.find_by_guid(m_colours_client_list[i].m_guid, p_data);
-        if (p_data->colour_mode == cui::colours::colour_mode_global)
+        if (p_data->active_colour_set().colour_mode == cui::colours::colour_mode_global)
             m_colours_client_list[i].m_ptr->on_colour_changed(cui::colours::colour_flag_all);
     }
 }

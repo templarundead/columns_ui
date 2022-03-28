@@ -2,6 +2,32 @@
 
 #include "colour_manager_data.h"
 
+#include "colour_utils.h"
+#include "dark_mode.h"
+
+namespace cui::colours {
+
+ColourSet create_default_colour_set(bool is_dark, colour_mode_t mode)
+{
+    cui::colours::ColourSet colour_set;
+    std::initializer_list<std::tuple<COLORREF&, cui::colours::colour_identifier_t>> colour_identifier_pairs
+        = {{colour_set.text, cui::colours::colour_text}, {colour_set.background, cui::colours::colour_background},
+            {colour_set.selection_text, cui::colours::colour_selection_text},
+            {colour_set.selection_background, cui::colours::colour_selection_background},
+            {colour_set.inactive_selection_text, cui::colours::colour_inactive_selection_text},
+            {colour_set.inactive_selection_background, cui::colours::colour_inactive_selection_background},
+            {colour_set.active_item_frame, cui::colours::colour_active_item_frame}};
+
+    for (auto&& [colour, identifier] : colour_identifier_pairs)
+        colour = dark::get_system_colour(get_system_colour_id(identifier), is_dark);
+
+    colour_set.colour_mode = mode;
+
+    return colour_set;
+}
+
+} // namespace cui::colours
+
 void ColourManagerData::g_on_common_bool_changed(uint32_t mask)
 {
     // Copy the list of callbacks in case someone tries to add or remove one
@@ -67,6 +93,15 @@ void ColourManagerData::set_data_raw(stream_reader* p_stream, size_t p_sizehint,
             ptr->read(version, p_stream, p_abort);
             m_entries.add_item(ptr);
         }
+
+        try {
+            m_global_entry->read_extra_data(version, p_stream, p_abort);
+
+            for (auto&& entry : m_entries) {
+                entry->read_extra_data(version, p_stream, p_abort);
+            }
+        } catch (const exception_io_data_truncation&) {
+        }
     }
 }
 
@@ -95,40 +130,60 @@ void ColourManagerData::get_data_raw(stream_writer* p_stream, abort_callback& p_
     for (i = 0; i < count; i++)
         if (mask[i])
             m_entries[i]->write(p_stream, p_abort);
+
+    m_global_entry->write_extra_data(p_stream, p_abort);
+    for (auto&& [is_valid, entry] : ranges::views::zip(mask, m_entries))
+        if (is_valid)
+            entry->write_extra_data(p_stream, p_abort);
 }
 
-ColourManagerData::Entry::Entry(bool b_global /*= false*/)
-    : colour_mode(b_global ? cui::colours::colour_mode_themed : cui::colours::colour_mode_global)
+ColourManagerData::Entry::Entry(bool b_global)
+    : light_mode_colours(cui::colours::create_default_colour_set(
+        false, b_global ? cui::colours::colour_mode_themed : cui::colours::colour_mode_global))
+    , dark_mode_colours(cui::colours::create_default_colour_set(
+          true, b_global ? cui::colours::colour_mode_themed : cui::colours::colour_mode_global))
 {
-    reset_colors();
 }
 
-void ColourManagerData::Entry::reset_colors()
+void cui::colours::ColourSet::read(uint32_t version, stream_reader* stream, abort_callback& aborter)
 {
-    text = g_get_system_color(cui::colours::colour_text);
-    selection_text = g_get_system_color(cui::colours::colour_selection_text);
-    inactive_selection_text = g_get_system_color(cui::colours::colour_inactive_selection_text);
-    background = g_get_system_color(cui::colours::colour_background);
-    selection_background = g_get_system_color(cui::colours::colour_selection_background);
-    inactive_selection_background = g_get_system_color(cui::colours::colour_inactive_selection_background);
-    active_item_frame = g_get_system_color(cui::colours::colour_active_item_frame);
-    group_foreground = NULL;
-    group_background = NULL;
-    use_custom_active_item_frame = false;
+    stream->read_lendian_t((uint32_t&)colour_mode, aborter);
+    stream->read_lendian_t(text, aborter);
+    stream->read_lendian_t(selection_text, aborter);
+    stream->read_lendian_t(inactive_selection_text, aborter);
+    stream->read_lendian_t(background, aborter);
+    stream->read_lendian_t(selection_background, aborter);
+    stream->read_lendian_t(inactive_selection_background, aborter);
+    stream->read_lendian_t(active_item_frame, aborter);
+    stream->read_lendian_t(use_custom_active_item_frame, aborter);
 }
 
-void ColourManagerData::Entry::read(uint32_t version, stream_reader* p_stream, abort_callback& p_abort)
+void cui::colours::ColourSet::write(stream_writer* stream, abort_callback& aborter) const
 {
-    p_stream->read_lendian_t(guid, p_abort);
-    p_stream->read_lendian_t((uint32_t&)colour_mode, p_abort);
-    p_stream->read_lendian_t(text, p_abort);
-    p_stream->read_lendian_t(selection_text, p_abort);
-    p_stream->read_lendian_t(inactive_selection_text, p_abort);
-    p_stream->read_lendian_t(background, p_abort);
-    p_stream->read_lendian_t(selection_background, p_abort);
-    p_stream->read_lendian_t(inactive_selection_background, p_abort);
-    p_stream->read_lendian_t(active_item_frame, p_abort);
-    p_stream->read_lendian_t(use_custom_active_item_frame, p_abort);
+    stream->write_lendian_t((uint32_t)colour_mode, aborter);
+    stream->write_lendian_t(text, aborter);
+    stream->write_lendian_t(selection_text, aborter);
+    stream->write_lendian_t(inactive_selection_text, aborter);
+    stream->write_lendian_t(background, aborter);
+    stream->write_lendian_t(selection_background, aborter);
+    stream->write_lendian_t(inactive_selection_background, aborter);
+    stream->write_lendian_t(active_item_frame, aborter);
+    stream->write_lendian_t(use_custom_active_item_frame, aborter);
+}
+
+void ColourManagerData::Entry::read(uint32_t version, stream_reader* stream, abort_callback& aborter)
+{
+    stream->read_lendian_t(guid, aborter);
+    light_mode_colours.read(version, stream, aborter);
+}
+
+void ColourManagerData::Entry::read_extra_data(uint32_t version, stream_reader* stream, abort_callback& aborter)
+{
+    uint32_t size{};
+    stream->read_lendian_t(size, aborter);
+    stream_reader_limited_ref limited_reader(stream, size);
+
+    dark_mode_colours.read(version, &limited_reader, aborter);
 }
 
 void ColourManagerData::Entry::import(
@@ -147,31 +202,31 @@ void ColourManagerData::Entry::import(
             reader.read_item(guid);
             break;
         case identifier_mode:
-            reader.read_item((uint32_t&)colour_mode);
+            reader.read_item((uint32_t&)light_mode_colours.colour_mode);
             break;
-        case identifier_text:
-            reader.read_item(text);
+        case identifier_light_text:
+            reader.read_item(light_mode_colours.text);
             break;
-        case identifier_selection_text:
-            reader.read_item(selection_text);
+        case identifier_light_selection_text:
+            reader.read_item(light_mode_colours.selection_text);
             break;
-        case identifier_inactive_selection_text:
-            reader.read_item(inactive_selection_text);
+        case identifier_light_inactive_selection_text:
+            reader.read_item(light_mode_colours.inactive_selection_text);
             break;
-        case identifier_background:
-            reader.read_item(background);
+        case identifier_light_background:
+            reader.read_item(light_mode_colours.background);
             break;
-        case identifier_selection_background:
-            reader.read_item(selection_background);
+        case identifier_light_selection_background:
+            reader.read_item(light_mode_colours.selection_background);
             break;
-        case identifier_inactive_selection_background:
-            reader.read_item(inactive_selection_background);
+        case identifier_light_inactive_selection_background:
+            reader.read_item(light_mode_colours.inactive_selection_background);
             break;
-        case identifier_custom_active_item_frame:
-            reader.read_item(active_item_frame);
+        case identifier_light_custom_active_item_frame:
+            reader.read_item(light_mode_colours.active_item_frame);
             break;
-        case identifier_use_custom_active_item_frame:
-            reader.read_item(use_custom_active_item_frame);
+        case identifier_light_use_custom_active_item_frame:
+            reader.read_item(light_mode_colours.use_custom_active_item_frame);
             break;
         default:
             reader.skip(element_size);
@@ -184,29 +239,31 @@ void ColourManagerData::Entry::_export(stream_writer* p_stream, abort_callback& 
 {
     fbh::fcl::Writer out(p_stream, p_abort);
     out.write_item(identifier_guid, guid);
-    out.write_item(identifier_mode, (uint32_t)colour_mode);
-    if (colour_mode == cui::colours::colour_mode_custom) {
-        out.write_item(identifier_text, text);
-        out.write_item(identifier_selection_text, selection_text);
-        out.write_item(identifier_inactive_selection_text, inactive_selection_text);
-        out.write_item(identifier_background, background);
-        out.write_item(identifier_selection_background, selection_background);
-        out.write_item(identifier_inactive_selection_background, inactive_selection_background);
+    out.write_item(identifier_mode, (uint32_t)light_mode_colours.colour_mode);
+    if (light_mode_colours.colour_mode == cui::colours::colour_mode_custom) {
+        out.write_item(identifier_light_text, light_mode_colours.text);
+        out.write_item(identifier_light_selection_text, light_mode_colours.selection_text);
+        out.write_item(identifier_light_inactive_selection_text, light_mode_colours.inactive_selection_text);
+        out.write_item(identifier_light_background, light_mode_colours.background);
+        out.write_item(identifier_light_selection_background, light_mode_colours.selection_background);
+        out.write_item(
+            identifier_light_inactive_selection_background, light_mode_colours.inactive_selection_background);
     }
-    out.write_item(identifier_use_custom_active_item_frame, use_custom_active_item_frame);
-    out.write_item(identifier_custom_active_item_frame, active_item_frame);
+    out.write_item(identifier_light_use_custom_active_item_frame, light_mode_colours.use_custom_active_item_frame);
+    out.write_item(identifier_light_custom_active_item_frame, light_mode_colours.active_item_frame);
 }
 
-void ColourManagerData::Entry::write(stream_writer* p_stream, abort_callback& p_abort)
+void ColourManagerData::Entry::write(stream_writer* stream, abort_callback& aborter)
 {
-    p_stream->write_lendian_t(guid, p_abort);
-    p_stream->write_lendian_t((uint32_t)colour_mode, p_abort);
-    p_stream->write_lendian_t(text, p_abort);
-    p_stream->write_lendian_t(selection_text, p_abort);
-    p_stream->write_lendian_t(inactive_selection_text, p_abort);
-    p_stream->write_lendian_t(background, p_abort);
-    p_stream->write_lendian_t(selection_background, p_abort);
-    p_stream->write_lendian_t(inactive_selection_background, p_abort);
-    p_stream->write_lendian_t(active_item_frame, p_abort);
-    p_stream->write_lendian_t(use_custom_active_item_frame, p_abort);
+    stream->write_lendian_t(guid, aborter);
+    light_mode_colours.write(stream, aborter);
+}
+
+void ColourManagerData::Entry::write_extra_data(stream_writer* stream, abort_callback& aborter)
+{
+    stream_writer_buffer_simple item_stream;
+    dark_mode_colours.write(&item_stream, aborter);
+
+    stream->write_lendian_t(gsl::narrow<uint32_t>(item_stream.m_buffer.get_size()), aborter);
+    stream->write(item_stream.m_buffer.get_ptr(), item_stream.m_buffer.get_size(), aborter);
 }

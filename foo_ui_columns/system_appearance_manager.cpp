@@ -146,15 +146,17 @@ private:
             ColoursClientList m_colours_client_list;
             ColoursClientList::g_get_list(m_colours_client_list);
             size_t count = m_colours_client_list.get_count();
-            bool b_global_custom = g_colour_manager_data.m_global_entry->colour_mode == colours::colour_mode_custom;
+            bool b_global_custom
+                = g_colour_manager_data.m_global_entry->active_colour_set().colour_mode == colours::colour_mode_custom;
             if (!b_global_custom)
                 g_colour_manager_data.g_on_common_colour_changed(colours::colour_flag_all);
             for (size_t i = 0; i < count; i++) {
                 ColourManagerData::entry_ptr_t p_data;
                 g_colour_manager_data.find_by_guid(m_colours_client_list[i].m_guid, p_data);
-                if (p_data->colour_mode == colours::colour_mode_system
-                    || p_data->colour_mode == colours::colour_mode_themed
-                    || (p_data->colour_mode == colours::colour_mode_global && !b_global_custom)) {
+                auto colour_mode = p_data->active_colour_set().colour_mode;
+
+                if (colour_mode == colours::colour_mode_system || colour_mode == colours::colour_mode_themed
+                    || (colour_mode == colours::colour_mode_global && !b_global_custom)) {
                     m_colours_client_list[i].m_ptr->on_colour_changed(colours::colour_flag_all);
                 }
             }
