@@ -139,7 +139,10 @@ public:
         const auto tf_api = titleformat_compiler::get();
         tf_api->compile(m_to, src);
     }
-    void set_mode(uint32_t mode) { m_mode = mode; }
+    void set_mode(uint32_t mode)
+    {
+        m_mode = mode;
+    }
     bool on_key(WPARAM wp)
     {
         switch (wp) {
